@@ -112,18 +112,14 @@ function encodeScrobbles(root) {
     return structure;
 }
 
-function getLastFMPage(page) {
-    function retry(reason) {
+    function lastFmretry(reason) {
         console.warn(reason + ' fetching last.fm page=' + page + ', retrying in 3s');
         setTimeout(function () {
             getLastFMPage(page);
         }, 3000);
     }
 
-    var xhr = new XMLHttpRequest();
-    xhr.timeout = 10 * 1000; // 10 seconds
-    xhr.open("GET", encodeURI("http://www.last.fm/user/{{ lastfm_username }}/library?page=" + page + "&_pjax=%23content"));
-    xhr.onload = function () {
+    function lastFmOnLoad() {
         if (/^2/.test(this.status)) {
             reportPageAndGetNext(this.response);
         } else if (/^5/.test(this.status)) {
@@ -132,17 +128,30 @@ function getLastFMPage(page) {
             // ignore 40x
             pageDone();
         }
-    };
-    xhr.ontimeout = function () {
-        retry('timeout');
-    };
-    xhr.onabort = function () {
+    }
+
+    function lastFmOnTimeout() {
+        lastFmretry('timeout');
+    }
+
+    function lastFmOnAbort() {
         // this should never happen
         pageDone();
-    };
-    xhr.onerror = function () {
-        retry('error');
-    };
+    }
+
+    function lastFmOnError() {
+        lastFmretry('error');
+    }
+
+function getLastFMPage(page) {
+
+    var xhr = new XMLHttpRequest();
+    xhr.timeout = 10 * 1000; // 10 seconds
+    xhr.open("GET", encodeURI("http://www.last.fm/user/{{ lastfm_username }}/library?page=" + page + "&_pjax=%23content"));
+    xhr.onload = lastFmOnLoad;
+    xhr.ontimeout = lastFmOnTimeout;
+    xhr.onabort = lastFmOnAbort;
+    xhr.onerror = lastFmOnError;
     xhr.send();
 }
 
@@ -163,21 +172,7 @@ var timesGetPage = 0;
 var times4Error = 0;
 var times5Error = 0;
 
-function reportScrobbles(struct) {
-    if (!struct.payload.length) {
-        pageDone();
-        return;
-    }
-
-    timesReportScrobbles++;
-    //must have a trailing slash
-    var reportingURL = "{{ base_url }}";
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", reportingURL);
-    xhr.setRequestHeader("Authorization", "Token {{ user_token }}");
-    xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-    xhr.timeout = 10 * 1000; // 10 seconds
-    xhr.onload = function(content) {
+function submitOnLoad() {
         if (this.status >= 200 && this.status < 300) {
             console.log("successfully reported page");
             pageDone();
@@ -206,7 +201,23 @@ function reportScrobbles(struct) {
         } else {
             updateMessage("<i class='fa fa-cog fa-spin'></i> Sending page " + numCompleted + " of " + numberOfPages + " to ListenBrainz<br><span style='font-size:8pt'>Please don't navigate while this is running</span>");
         }
-    };
+}
+
+function reportScrobbles(struct) {
+    if (!struct.payload.length) {
+        pageDone();
+        return;
+    }
+
+    timesReportScrobbles++;
+    //must have a trailing slash
+    var reportingURL = "{{ base_url }}";
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", reportingURL);
+    xhr.setRequestHeader("Authorization", "Token {{ user_token }}");
+    xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+    xhr.timeout = 10 * 1000; // 10 seconds
+    xhr.onload = submitOnLoad;
     xhr.ontimeout = function(context) {
         console.log("timeout, req'ing");
         reportScrobbles(struct);
@@ -246,7 +257,7 @@ function getNextPagesIfSlots() {
 function pageDone() {
     activeSubmissions--;
     numCompleted++;
-    getNextPagesIfSlots();
+    //getNextPagesIfSlots();
 }
 
 function updateMessage(message) {
@@ -263,4 +274,9 @@ function updateMessage(message) {
 document.body.insertAdjacentHTML( 'afterbegin', '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">');
 document.body.insertAdjacentHTML( 'afterbegin', '<div style="position:absolute; top:200px; z-index: 200000000000000; width:500px; margin-left:-250px; left:50%; background-color:#fff; box-shadow: 0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22); text-align:center; padding:50px;" id="listen-progress-container"></div>');
 updateMessage("");
-getNextPagesIfSlots();
+var timer = setInterval(function() {
+    if (page > numberOfPages) {
+        clearInterval(timer);
+    }
+    getNextPagesIfSlots();
+}, 100);
