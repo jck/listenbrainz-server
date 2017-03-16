@@ -10,7 +10,9 @@ services:
   - postgresql
   - redis
 
-install: pip install -r requirements.txt
+install: 
+  - pip install git+https://github.com/metabrainz/messybrainz-server.git
+  - pip install -r requirements.txt
 
 before_script:
   - python manage.py init_db --create-db
