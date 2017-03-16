@@ -21,3 +21,5 @@ before_script:
   - python manage.py init_db --create-db
 
 script: pytest
+
+cache: pip
