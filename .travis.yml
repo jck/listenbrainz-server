@@ -10,6 +10,9 @@ services:
   - postgresql
   - redis
 
+addons:
+  postgresql: 9.6
+
 install: 
   - pip install git+https://github.com/metabrainz/messybrainz-server.git
   - pip install -r requirements.txt
